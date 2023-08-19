@@ -7,6 +7,7 @@ import (
 	"optimusvid/pkg/bot"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 
 	bt "github.com/SakoDroid/telego"
@@ -57,6 +58,34 @@ func createAndOpenFile(filename string) *os.File {
 	return file
 }
 
+func ensureVideoDirectory() string {
+	exe, err := os.Executable()
+	if err != nil {
+		log.Panicf("Failed to determine the executable path: %v", err)
+	}
+
+	// Get the directory of the executable
+	exeDir := filepath.Dir(exe)
+
+	// Traverse two directories up to reach the project root
+	var projectRoot string
+	if projectRoot = os.Getenv("PROJECT_ROOT"); projectRoot == "" {
+		fmt.Printf("projectRoot -**-: %s\n\n", projectRoot)
+		projectRoot = filepath.Join(exeDir, "..", "..")
+	}
+	fmt.Printf("projectRoot: %s\n\n", projectRoot)
+	// Ensure /tmp/videos directory exists
+	videoPath := filepath.Join(projectRoot, "tmp", "videos")
+	if _, err := os.Stat(videoPath); os.IsNotExist(err) {
+		err := os.MkdirAll(videoPath, 0755)
+		if err != nil {
+			log.Panicf("Failed to create directory: %v", err)
+		}
+	}
+
+	return videoPath
+}
+
 func start(bot *bt.Bot) {
 
 	updates := bot.GetUpdateChannel()
@@ -71,7 +100,10 @@ func start(bot *bt.Bot) {
 			video := update.Message.Video
 			fmt.Println("-1-->", video.Duration, video.FileId)
 
-			filename := "output.mp4"
+			videoDirectory := ensureVideoDirectory()
+			filename := filepath.Join(videoDirectory, video.FileId+".mp4")
+			outputFilename := filepath.Join(videoDirectory, video.FileId+"_converted.mp4")
+			fmt.Println("-2**>", videoDirectory, filename)
 			file := createAndOpenFile(filename)
 			defer file.Close()
 
@@ -81,6 +113,7 @@ func start(bot *bt.Bot) {
 				continue
 			}
 			fmt.Println("-2-->", videoFile)
+			convertVideo(filename, outputFilename, "libxvid", "1M", "mp3", "192k")
 
 			// Extract metadata using ffprobe (part of ffmpeg toolset)
 			cmd := exec.Command("ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", filename)
@@ -92,8 +125,9 @@ func start(bot *bt.Bot) {
 
 			// Respond back to the user with the filename and metadata
 			response := fmt.Sprintf("Filename: %s\nMetadata:\n%s", filename, string(output))
+			fmt.Println("-4-->", response[0])
 			// msg := telego.Message{MessageID: update.Message.Chat.Id, Text: response}
-			bot.SendMessage(update.Message.Chat.Id, response, "", 1, true, false)
+			bot.SendMessage(update.Message.Chat.Id, filename, "", 1, true, false)
 		}
 	}
 
