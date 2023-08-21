@@ -159,7 +159,7 @@ func start(bot *bt.Bot) {
 			}
 			// videoInReply := update.Message.ReplyToMessage.Video.FileId
 
-			sendAudioToUser(bot, update.Message.Chat.Id, videoInReply, audioFile)
+			sendAudioToUser(bot, update.Message.Chat.Id, videoInReply, audioFile, false)
 
 			// Extract metadata using ffprobe (part of ffmpeg toolset)
 			cmd := exec.Command("ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", originalFilename)
