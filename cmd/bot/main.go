@@ -51,18 +51,18 @@ func start(optimus *optimus.Optimus) {
 		if update.Message.Video != nil {
 			video := update.Message.Video
 
-			// Check the video's duration
 			if video.Duration > maxDurationSeconds {
-				_, err := optimus.Bot.SendMessage(update.Message.Chat.Id, "The uploaded video exceeds the 10-minute limit. Please upload a shorter video.", "", update.Message.MessageId, false, false)
+				durationLimitMsg := fmt.Sprintf("The uploaded video exceeds the %d-seconds limit. Please upload a shorter video.", maxDurationSeconds)
+				_, err := optimus.Bot.SendMessage(update.Message.Chat.Id, durationLimitMsg, "", update.Message.MessageId, false, false)
 				if err != nil {
 					log.Printf("Failed to send the video length warning: %v", err)
 				}
-				continue // Skip further processing for this video
+				continue
 			}
 
 			videoDirectory := system.EnsureVideoDirectory()
 			originalFilename := filepath.Join(videoDirectory, video.FileId+".mp4")
-			outputVideoFilename := filepath.Join(videoDirectory, video.FileId+"_converted_video.mp4")
+			//outputVideoFilename := filepath.Join(videoDirectory, video.FileId+"_converted_video.mp4")
 			outputAduioFilename := filepath.Join(videoDirectory, video.FileId+"_converted_Audio.mp3")
 			originalFile := system.CreateAndOpenFile(originalFilename)
 			defer originalFile.Close()
@@ -74,7 +74,7 @@ func start(optimus *optimus.Optimus) {
 			}
 			// videoFile := CreateAndOpenFile(outputVideoFilename)
 			// defer videoFile.Close()
-			optimus.ConvertVideoToAudio(originalFilename, outputVideoFilename, "libxvid", "1M", "mp3", "192k")
+			//optimus.ConvertVideoToAudio(originalFilename, outputVideoFilename, "libxvid", "1M", "mp3", "192k")
 			audioFile, _ := optimus.ExtractAudioFromVideo(originalFilename, outputAduioFilename, "mp3", "192k")
 			defer audioFile.Close()
 
@@ -112,16 +112,4 @@ func main() {
 		go start(optimus)
 	}
 	select {}
-
-	// err = ConvertVideoToAudio(*input, *outputVideo, *videoCodec, *videoBitrate, *audioCodec, *audioBitrate)
-	// if err != nil {
-	// 	log.Fatalf("Error converting video: %v", err)
-	// }
-
-	// err = ExtractAudioFromVideo(*input, *outputAudio, *audioCodec, *audioBitrate)
-	// if err != nil {
-	// 	log.Fatalf("Error extracting audio: %v", err)
-	// }
-
-	// fmt.Println("Conversion successful!")
 }
