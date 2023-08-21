@@ -24,25 +24,3 @@ func Init() *bt.Bot {
 
 	return bot
 }
-
-// func (b *bt.Bot) SendMessage(msg string) {
-
-// }
-
-// func (bot *OptimsuVidBot) GetFilename() string {
-// 	updateChannel := bot.GetUpdateChannel()
-// 	update := <-*updateChannel
-
-// 	// Get sticker file id
-// 	fi := update.Message.Sticker.FileId
-
-// 	// Open a file in the computer.
-// 	fl, _ := os.OpenFile("sticker.webp", os.O_CREATE|os.O_WRONLY, 0666)
-
-// 	// Gets the file info and downloads it.
-// 	_, err := bot.GetFile(fi, true, fl)
-// 	if err != nil {
-// 		fmt.Println(err)
-// 	}
-// 	fl.Close()
-// }

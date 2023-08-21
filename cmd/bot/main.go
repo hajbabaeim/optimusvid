@@ -5,29 +5,13 @@ import (
 	"fmt"
 	"log"
 	"optimusvid/pkg/bot"
+	"optimusvid/pkg/system"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strconv"
 
 	bt "github.com/SakoDroid/telego"
-	"github.com/joho/godotenv"
 )
-
-const projectDirName = "OptimusVid-Convert" // change to relevant project name
-
-func loadEnv() {
-	projectName := regexp.MustCompile(`^(.*` + projectDirName + `)`)
-	currentWorkDirectory, _ := os.Getwd()
-	rootPath := projectName.Find([]byte(currentWorkDirectory))
-
-	err := godotenv.Load(string(rootPath) + `/.env`)
-
-	if err != nil {
-		log.Fatalf("Error loading .env file")
-	}
-}
 
 func convertVideo(inputPath string, outputPath string, videoCodec string, videoBitrate string, audioCodec string, audioBitrate string) error {
 	cmd := exec.Command("ffmpeg", "-i", inputPath, "-c:v", videoCodec, "-b:v", videoBitrate, "-c:a", audioCodec, "-b:a", audioBitrate, outputPath)
@@ -56,21 +40,22 @@ func extractAudio(inputPath string, outputPath string, audioCodec string, audioB
 }
 
 func sendAudioToUser(bot *bt.Bot, chatID int, replyTo int, audioFile *os.File, deleteAfter bool) {
+	fmt.Printf("🍑🍑🍑 The chatId: %d, replyTo: %d\n\n", chatID, replyTo)
 	mediaSender := bot.SendAudio(chatID, replyTo, "Test Caption", "")
 	audioMsg, err := mediaSender.SendByFile(audioFile, true, false)
 	if err != nil {
-		log.Printf("Failed to send audio: %v", err)
+		log.Printf("Failed to send audio: %v\n\n", err)
 		return
 	}
 
-	log.Printf("Sent audio message to chat ID %d with message ID %d", chatID, audioMsg.Result.MessageId)
+	log.Printf("Sent audio message to chat ID %d with message ID %d\n\n", chatID, audioMsg.Result.MessageId)
 
 	// Optionally, delete the audio file from disk after sending
 	if deleteAfter {
 		audioPath := audioFile.Name()
 		err = os.Remove(audioPath)
 		if err != nil {
-			log.Printf("Failed to delete audio file: %v", err)
+			log.Printf("Failed to delete audio file: %v\n\n", err)
 		}
 	}
 }
@@ -95,10 +80,8 @@ func ensureVideoDirectory() string {
 	// Traverse two directories up to reach the project root
 	var projectRoot string
 	if projectRoot = os.Getenv("PROJECT_ROOT"); projectRoot == "" {
-		fmt.Printf("projectRoot -**-: %s\n\n", projectRoot)
 		projectRoot = filepath.Join(exeDir, "..", "..")
 	}
-	fmt.Printf("projectRoot: %s\n\n", projectRoot)
 	// Ensure /tmp/videos directory exists
 	videoPath := filepath.Join(projectRoot, "tmp", "videos")
 	if _, err := os.Stat(videoPath); os.IsNotExist(err) {
@@ -145,43 +128,32 @@ func start(bot *bt.Bot) {
 			audioFile, _ := extractAudio(originalFilename, outputAduioFilename, "mp3", "192k")
 			defer audioFile.Close()
 
-			var videoInReply int
-			if update.Message.ReplyToMessage != nil {
-				replyToMsg := update.Message.ReplyToMessage
-				text := replyToMsg.Text
-				// Now you need to parse the integer from the text.
-				videoInReply, err = strconv.Atoi(text)
-				if err != nil {
-					log.Printf("Failed to parse integer from the replied message: %v", err)
-				} else {
-					fmt.Println(videoInReply)
-				}
-			}
-			// videoInReply := update.Message.ReplyToMessage.Video.FileId
+			// var videoInReply int
+			fmt.Printf("**1**replyToMsg: %+v\n\n%+v\n\n", update.Message.MessageId, update.Message.Chat.Id)
 
-			sendAudioToUser(bot, update.Message.Chat.Id, videoInReply, audioFile, false)
+			sendAudioToUser(bot, update.Message.Chat.Id, update.Message.MessageId, audioFile, false)
 
 			// Extract metadata using ffprobe (part of ffmpeg toolset)
 			cmd := exec.Command("ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", originalFilename)
-			output, err := cmd.Output()
+			// output, err := cmd.Output()
+			_, err = cmd.Output()
 			if err != nil {
 				log.Println("Error while getting metadata:", err)
 				continue
 			}
 
 			// Respond back to the user with the filename and metadata
-			response := fmt.Sprintf("Filename: %s\nMetadata:\n%s", originalFilename, string(output))
-			fmt.Println("-4-->", response[0])
+			// response := fmt.Sprintf("Filename: %s\nMetadata:\n%s", originalFilename, string(output))
 			// msg := telego.Message{MessageID: update.Message.Chat.Id, Text: response}
 
-			bot.SendMessage(update.Message.Chat.Id, originalFilename, "", 1, true, false)
+			// bot.SendMessage(update.Message.Chat.Id, originalFilename, "", 1, true, false)
 		}
 	}
 
 }
 
 func main() {
-	loadEnv()
+	system.LoadEnv()
 	// Define and parse flags
 	// input := flag.String("input", "sample.mp4", "Path to the input video file")
 	// outputVideo := flag.String("outputVideo", "output.avi", "Path for the converted video file")
