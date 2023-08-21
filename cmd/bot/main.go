@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 
 	bt "github.com/SakoDroid/telego"
 	"github.com/joho/godotenv"
@@ -39,15 +40,39 @@ func convertVideo(inputPath string, outputPath string, videoCodec string, videoB
 	return nil
 }
 
-func extractAudio(inputPath string, outputPath string, audioCodec string, audioBitrate string) error {
+func extractAudio(inputPath string, outputPath string, audioCodec string, audioBitrate string) (*os.File, error) {
 	cmd := exec.Command("ffmpeg", "-i", inputPath, "-c:a", audioCodec, "-b:a", audioBitrate, outputPath)
 
-	err := cmd.Run()
-	if err != nil {
-		return fmt.Errorf("failed to extract audio: %v", err)
+	if err := cmd.Run(); err != nil {
+		return nil, err
 	}
 
-	return nil
+	audioFile, err := os.Open(outputPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return audioFile, nil
+}
+
+func sendAudioToUser(bot *bt.Bot, chatID int, replyTo int, audioFile *os.File, deleteAfter bool) {
+	mediaSender := bot.SendAudio(chatID, replyTo, "Test Caption", "")
+	audioMsg, err := mediaSender.SendByFile(audioFile, true, false)
+	if err != nil {
+		log.Printf("Failed to send audio: %v", err)
+		return
+	}
+
+	log.Printf("Sent audio message to chat ID %d with message ID %d", chatID, audioMsg.Result.MessageId)
+
+	// Optionally, delete the audio file from disk after sending
+	if deleteAfter {
+		audioPath := audioFile.Name()
+		err = os.Remove(audioPath)
+		if err != nil {
+			log.Printf("Failed to delete audio file: %v", err)
+		}
+	}
 }
 
 func createAndOpenFile(filename string) *os.File {
@@ -101,22 +126,43 @@ func start(bot *bt.Bot) {
 			fmt.Println("-1-->", video.Duration, video.FileId)
 
 			videoDirectory := ensureVideoDirectory()
-			filename := filepath.Join(videoDirectory, video.FileId+".mp4")
-			outputFilename := filepath.Join(videoDirectory, video.FileId+"_converted.mp4")
-			fmt.Println("-2**>", videoDirectory, filename)
-			file := createAndOpenFile(filename)
-			defer file.Close()
+			originalFilename := filepath.Join(videoDirectory, video.FileId+".mp4")
+			outputVideoFilename := filepath.Join(videoDirectory, video.FileId+"_converted_video.mp4")
+			outputAduioFilename := filepath.Join(videoDirectory, video.FileId+"_converted_Audio.mp3")
+			fmt.Println("-2**>", videoDirectory, originalFilename)
+			originalFile := createAndOpenFile(originalFilename)
 
-			videoFile, err := bot.GetFile(video.FileId, true, file)
+			defer originalFile.Close()
+
+			_, err := bot.GetFile(video.FileId, true, originalFile)
 			if err != nil {
 				log.Println("Error while getting the file:", err)
 				continue
 			}
-			fmt.Println("-2-->", videoFile)
-			convertVideo(filename, outputFilename, "libxvid", "1M", "mp3", "192k")
+			// videoFile := createAndOpenFile(outputVideoFilename)
+			// defer videoFile.Close()
+			convertVideo(originalFilename, outputVideoFilename, "libxvid", "1M", "mp3", "192k")
+			audioFile, _ := extractAudio(originalFilename, outputAduioFilename, "mp3", "192k")
+			defer audioFile.Close()
+
+			var videoInReply int
+			if update.Message.ReplyToMessage != nil {
+				replyToMsg := update.Message.ReplyToMessage
+				text := replyToMsg.Text
+				// Now you need to parse the integer from the text.
+				videoInReply, err = strconv.Atoi(text)
+				if err != nil {
+					log.Printf("Failed to parse integer from the replied message: %v", err)
+				} else {
+					fmt.Println(videoInReply)
+				}
+			}
+			// videoInReply := update.Message.ReplyToMessage.Video.FileId
+
+			sendAudioToUser(bot, update.Message.Chat.Id, videoInReply, audioFile)
 
 			// Extract metadata using ffprobe (part of ffmpeg toolset)
-			cmd := exec.Command("ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", filename)
+			cmd := exec.Command("ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", originalFilename)
 			output, err := cmd.Output()
 			if err != nil {
 				log.Println("Error while getting metadata:", err)
@@ -124,10 +170,11 @@ func start(bot *bt.Bot) {
 			}
 
 			// Respond back to the user with the filename and metadata
-			response := fmt.Sprintf("Filename: %s\nMetadata:\n%s", filename, string(output))
+			response := fmt.Sprintf("Filename: %s\nMetadata:\n%s", originalFilename, string(output))
 			fmt.Println("-4-->", response[0])
 			// msg := telego.Message{MessageID: update.Message.Chat.Id, Text: response}
-			bot.SendMessage(update.Message.Chat.Id, filename, "", 1, true, false)
+
+			bot.SendMessage(update.Message.Chat.Id, originalFilename, "", 1, true, false)
 		}
 	}
 
