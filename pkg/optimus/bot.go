@@ -10,11 +10,13 @@ import (
 	cfg "github.com/SakoDroid/telego/configs"
 )
 
-type Optimsu struct {
-	*bt.Bot
+type Optimus struct {
+	Bot     *bt.Bot
+	Format  string
+	Quality string
 }
 
-func Init() *bt.Bot {
+func Init() *Optimus {
 	up := cfg.DefaultUpdateConfigs()
 
 	cf := cfg.BotConfigs{BotAPI: cfg.DefaultBotAPI, APIKey: os.Getenv("TELEGRAM_API"), UpdateConfigs: up, Webhook: false, LogFileAddress: cfg.DefaultLogFile}
@@ -24,10 +26,10 @@ func Init() *bt.Bot {
 		fmt.Printf("Bot not initialised due to this issue: %v", err)
 	}
 
-	return bot
+	return &Optimus{Bot: bot, Format: "mp3", Quality: "192k"}
 }
 
-func ConvertVideoToAudio(inputPath string, outputPath string, videoCodec string, videoBitrate string, audioCodec string, audioBitrate string) error {
+func (optimus *Optimus) ConvertVideoToAudio(inputPath string, outputPath string, videoCodec string, videoBitrate string, audioCodec string, audioBitrate string) error {
 	cmd := exec.Command("ffmpeg", "-i", inputPath, "-c:v", videoCodec, "-b:v", videoBitrate, "-c:a", audioCodec, "-b:a", audioBitrate, outputPath)
 
 	err := cmd.Run()
@@ -38,7 +40,7 @@ func ConvertVideoToAudio(inputPath string, outputPath string, videoCodec string,
 	return nil
 }
 
-func ExtractAudioFromVideo(inputPath string, outputPath string, audioCodec string, audioBitrate string) (*os.File, error) {
+func (optimus *Optimus) ExtractAudioFromVideo(inputPath string, outputPath string, audioCodec string, audioBitrate string) (*os.File, error) {
 	cmd := exec.Command("ffmpeg", "-i", inputPath, "-c:a", audioCodec, "-b:a", audioBitrate, outputPath)
 
 	if err := cmd.Run(); err != nil {
@@ -53,8 +55,8 @@ func ExtractAudioFromVideo(inputPath string, outputPath string, audioCodec strin
 	return audioFile, nil
 }
 
-func SendAudioToUser(bot *bt.Bot, chatID int, replyTo int, audioFile *os.File, deleteAfter bool) {
-	mediaSender := bot.SendAudio(chatID, replyTo, "Test Caption", "")
+func (optimus *Optimus) SendAudioToUser(chatID int, replyTo int, audioFile *os.File, deleteAfter bool) {
+	mediaSender := optimus.Bot.SendAudio(chatID, replyTo, "Test Caption", "")
 	audioMsg, err := mediaSender.SendByFile(audioFile, true, false)
 	if err != nil {
 		log.Printf("Failed to send audio: %v\n\n", err)

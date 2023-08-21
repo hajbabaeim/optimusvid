@@ -2,18 +2,39 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"optimusvid/pkg/optimus"
 	"optimusvid/pkg/system"
 	"os/exec"
 	"path/filepath"
 
-	bt "github.com/SakoDroid/telego"
+	objs "github.com/SakoDroid/telego/objects"
 )
 
-func start(bot *bt.Bot) {
+const (
+	maxDurationSeconds = 1 * 60
+)
 
-	updates := bot.GetUpdateChannel()
+func start(optimus *optimus.Optimus) {
+
+	updates := optimus.Bot.GetUpdateChannel()
+
+	optimus.Bot.AddHandler("/settings", func(u *objs.Update) {
+		settingsBtn := optimus.Bot.CreateInlineKeyboard()
+		settingsBtn.AddCallbackButtonHandler("MP3 format", "quality options", 1, func(u *objs.Update) {
+			_, err := optimus.Bot.AdvancedMode().AAnswerCallbackQuery(u.CallbackQuery.Id, "callback received", true, "", 0)
+			if err != nil {
+				fmt.Println(err)
+			}
+		})
+
+		//Sends the message along with the keyboard.
+		_, err := optimus.Bot.AdvancedMode().ASendMessage(u.Message.Chat.Id, "Please choose an format:", "", u.Message.MessageId, false, false, nil, false, false, settingsBtn)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}, "private")
 
 	for update := range *updates {
 		if update.Message == nil {
@@ -21,7 +42,7 @@ func start(bot *bt.Bot) {
 		}
 
 		if update.Message.Text == "/start" {
-			_, err := bot.SendMessage(update.Message.Chat.Id, "Welcome to OptimusVid Convert Bot! Send me a video and I'll convert it for you.", "", 1, true, false)
+			_, err := optimus.Bot.SendMessage(update.Message.Chat.Id, "Welcome to OptimusVid Convert Bot! Send me a video and I'll convert it for you.", "", 1, true, false)
 			if err != nil {
 				log.Printf("Failed to send the welcome message: %v", err)
 			}
@@ -29,6 +50,16 @@ func start(bot *bt.Bot) {
 
 		if update.Message.Video != nil {
 			video := update.Message.Video
+
+			// Check the video's duration
+			if video.Duration > maxDurationSeconds {
+				_, err := optimus.Bot.SendMessage(update.Message.Chat.Id, "The uploaded video exceeds the 10-minute limit. Please upload a shorter video.", "", update.Message.MessageId, false, false)
+				if err != nil {
+					log.Printf("Failed to send the video length warning: %v", err)
+				}
+				continue // Skip further processing for this video
+			}
+
 			videoDirectory := system.EnsureVideoDirectory()
 			originalFilename := filepath.Join(videoDirectory, video.FileId+".mp4")
 			outputVideoFilename := filepath.Join(videoDirectory, video.FileId+"_converted_video.mp4")
@@ -36,7 +67,7 @@ func start(bot *bt.Bot) {
 			originalFile := system.CreateAndOpenFile(originalFilename)
 			defer originalFile.Close()
 
-			_, err := bot.GetFile(video.FileId, true, originalFile)
+			_, err := optimus.Bot.GetFile(video.FileId, true, originalFile)
 			if err != nil {
 				log.Println("Error while getting the file:", err)
 				continue
@@ -47,7 +78,7 @@ func start(bot *bt.Bot) {
 			audioFile, _ := optimus.ExtractAudioFromVideo(originalFilename, outputAduioFilename, "mp3", "192k")
 			defer audioFile.Close()
 
-			optimus.SendAudioToUser(bot, update.Message.Chat.Id, update.Message.MessageId, audioFile, false)
+			optimus.SendAudioToUser(update.Message.Chat.Id, update.Message.MessageId, audioFile, false)
 
 			// Extract metadata using ffprobe (part of ffmpeg toolset)
 			cmd := exec.Command("ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", originalFilename)
@@ -75,10 +106,10 @@ func main() {
 
 	flag.Parse()
 
-	bot := optimus.Init()
+	optimus := optimus.Init()
 
-	if bot.Run() == nil {
-		go start(bot)
+	if optimus.Bot.Run() == nil {
+		go start(optimus)
 	}
 	select {}
 
