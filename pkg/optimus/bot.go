@@ -26,21 +26,11 @@ func Init() *Optimus {
 		fmt.Printf("Bot not initialised due to this issue: %v", err)
 	}
 
-	return &Optimus{Bot: bot, Format: "mp3", Quality: "192k"}
-}
-
-func (optimus *Optimus) ConvertVideoToAudio(inputPath string, outputPath string, videoCodec string, videoBitrate string, audioCodec string, audioBitrate string) error {
-	cmd := exec.Command("ffmpeg", "-i", inputPath, "-c:v", videoCodec, "-b:v", videoBitrate, "-c:a", audioCodec, "-b:a", audioBitrate, outputPath)
-
-	err := cmd.Run()
-	if err != nil {
-		return fmt.Errorf("failed to convert video: %v", err)
-	}
-
-	return nil
+	return &Optimus{Bot: bot, Format: "mp3", Quality: "128k"}
 }
 
 func (optimus *Optimus) ExtractAudioFromVideo(inputPath string, outputPath string, audioCodec string, audioBitrate string) (*os.File, error) {
+	fmt.Printf("---->>>> %s, %s", audioCodec, audioBitrate)
 	cmd := exec.Command("ffmpeg", "-i", inputPath, "-c:a", audioCodec, "-b:a", audioBitrate, outputPath)
 
 	if err := cmd.Run(); err != nil {
@@ -73,4 +63,8 @@ func (optimus *Optimus) SendAudioToUser(chatID int, replyTo int, audioFile *os.F
 			log.Printf("Failed to delete audio file: %v\n\n", err)
 		}
 	}
+}
+
+func (optimus *Optimus) GetBotDescription() string {
+	return `OptimusVidBot is your premier video-to-audio converter bot. Whether you're looking to transform music videos into MP3s or capture the audio from informative content, OptimusVidBot offers a broad range of output formats including AAC, MP3, Vorbis, FLAC, and WAV. But that's not all! You're in full control of the audio quality, allowing you to choose bitrates from as low as 32k (great for spoken content) to as high as 320k (perfect for high-fidelity music). Why compromise when you can get the best? Dive in now and experience the richness of sound with OptimusVidBot.`
 }
