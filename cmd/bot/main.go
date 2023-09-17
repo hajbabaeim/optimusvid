@@ -8,6 +8,10 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"os"
+	"os/signal"
+	"syscall"
+
 	bt "github.com/SakoDroid/telego"
 	objs "github.com/SakoDroid/telego/objects"
 )
@@ -128,8 +132,21 @@ func start(optimus *optimus.Optimus) {
 func main() {
 	system.LoadEnv()
 	optimus := optimus.Init()
-	if optimus.Bot.Run() == nil {
-		go start(optimus)
+	err := optimus.Bot.Run()
+	if err != nil {
+		log.Fatalf("Error running bot: %v", err)
 	}
-	select {}
+	go start(optimus)
+
+	// Create a channel to receive termination signals
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+	// Block until a termination signal is received
+	<-sigCh
+
+	// Perform cleanup and shutdown operations here
+
+	// Gracefully exit the application
+	os.Exit(0)
 }
