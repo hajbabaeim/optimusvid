@@ -17,16 +17,30 @@ type Optimus struct {
 }
 
 func Init() *Optimus {
+	// Create default update configs
 	up := cfg.DefaultUpdateConfigs()
 
-	cf := cfg.BotConfigs{BotAPI: cfg.DefaultBotAPI, APIKey: os.Getenv("TELEGRAM_API"), UpdateConfigs: up, Webhook: false, LogFileAddress: cfg.DefaultLogFile}
-
-	bot, err := bt.NewBot(&cf)
-	if err != nil {
-		fmt.Printf("Bot not initialised due to this issue: %v", err)
+	// Create bot configs with default values and environment variable for API key
+	cf := cfg.BotConfigs{
+		BotAPI:         cfg.DefaultBotAPI,
+		APIKey:         os.Getenv("TELEGRAM_API"),
+		UpdateConfigs:  up,
+		Webhook:        false,
+		LogFileAddress: cfg.DefaultLogFile,
 	}
 
-	return &Optimus{Bot: bot, Format: "mp3", Quality: "128k"}
+	// Create a new bot instance
+	bot, err := bt.NewBot(&cf)
+	if err != nil {
+		fmt.Printf("Bot not initialized due to this issue: %v", err)
+	}
+
+	// Initialize Optimus struct with bot, format, and quality
+	return &Optimus{
+		Bot:     bot,
+		Format:  "mp3",
+		Quality: "128k",
+	}
 }
 
 func (optimus *Optimus) ExtractAudioFromVideo(inputPath string, outputPath string, audioCodec string, audioBitrate string) (*os.File, error) {
