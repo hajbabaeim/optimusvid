@@ -45,9 +45,9 @@ func start(optimus *optimus.Optimus) {
 		switch update.Message.Text {
 		case "/start":
 			sendWelcomeMessage(optimus, update.Message.Chat.Id)
-		case "aac", "mp3", "Vorbis":
-			handleFormatSelection(optimus, update.Message)
-		case "flac", "wav":
+		// case "aac", "flac", "Vorbis":
+		// 	handleFormatSelection(optimus, update.Message)
+		case "mp3", "wav":
 			handleFormatSelection(optimus, update.Message)
 			optimus.Quality = ""
 		case "32k", "64k", "96k", "128k", "192k", "256k", "320k":
@@ -62,11 +62,8 @@ func start(optimus *optimus.Optimus) {
 
 func handleSettings(optimus *optimus.Optimus, u *objs.Update) {
 	settingsKb := optimus.Bot.CreateKeyboard(false, false, false, "Choose an options for format of output audio file.")
-	settingsKb.AddButton("aac", 1)
 	settingsKb.AddButton("mp3", 1)
-	settingsKb.AddButton("vorbis", 2)
-	settingsKb.AddButton("flac", 2)
-	settingsKb.AddButton("wav", 2)
+	settingsKb.AddButton("wav", 1)
 	_, err := optimus.Bot.AdvancedMode().ASendMessage(u.Message.Chat.Id, "Please choose a format", "", u.Message.MessageId, false, false, nil, false, false, settingsKb)
 	if err != nil {
 		fmt.Println(err)
@@ -82,13 +79,10 @@ func sendWelcomeMessage(optimus *optimus.Optimus, chatID int) {
 
 func handleFormatSelection(optimus *optimus.Optimus, message *objs.Message) {
 	qualityKb := optimus.Bot.CreateKeyboard(true, true, false, "Choose quality of audio file.")
-	qualityKb.AddButton("32k", 1)
 	qualityKb.AddButton("64k", 1)
 	qualityKb.AddButton("96k", 1)
-	qualityKb.AddButton("128k", 1)
+	qualityKb.AddButton("128k", 2)
 	qualityKb.AddButton("192k", 2)
-	qualityKb.AddButton("256k", 2)
-	qualityKb.AddButton("320k", 2)
 	_, err := optimus.Bot.AdvancedMode().ASendMessage(message.Chat.Id, "Please choose a quality for audio file.", "", message.MessageId, false, false, nil, false, false, qualityKb)
 	if err != nil {
 		fmt.Println(err)
@@ -120,6 +114,7 @@ func handleVideoConversion(optimus *optimus.Optimus, message *objs.Message) {
 	originalFilename := filepath.Join(videoDirectory, video.FileId+".mp4")
 	outputAduioFilename := filepath.Join(videoDirectory, video.FileId+"_converted_Audio.mp3")
 	originalFile := system.CreateAndOpenFile(originalFilename)
+	// fmt.Printf("videoDirectory: %s\n originalFilename: %s\n outputAduioFilename: %s\n originalFile: %s\n", videoDirectory, originalFilename, outputAduioFilename, originalFile)
 	defer originalFile.Close()
 
 	_, err := optimus.Bot.GetFile(video.FileId, true, originalFile)
@@ -133,11 +128,16 @@ func handleVideoConversion(optimus *optimus.Optimus, message *objs.Message) {
 
 	optimus.SendAudioToUser(message.Chat.Id, message.MessageId, audioFile, false)
 
-	cmd := exec.Command("ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", originalFilename)
-	_, err = cmd.Output()
+	// cmd := exec.Command("ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", originalFilename)
+	// _, err = cmd.Output()
+	// if err != nil {
+	// 	log.Println("Error while getting metadata:", err)
+	// 	return
+	// }
+	cmd := fmt.Sprintf("ffmpeg -i %s -vf \"fps=5,scale=320:-1:flags=lanczos\" -c:v pam -f image2pipe - | convert -delay 5 - -loop 0 -layers optimize %s", originalFilename, outputAduioFilename)
+	_, err = exec.Command("bash", "-c", cmd).Output()
 	if err != nil {
-		log.Println("Error while getting metadata:", err)
-		return
+		fmt.Println(fmt.Sprintf("Failed to execute command: %s", cmd))
 	}
 }
 
