@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	// "log"
 	"optimusvid/pkg/optimus"
 	"optimusvid/pkg/system"
 	"path/filepath"
@@ -11,6 +11,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	log "github.com/sirupsen/logrus"
+
 	bt "github.com/SakoDroid/telego"
 	objs "github.com/SakoDroid/telego/objects"
 )
@@ -18,6 +20,25 @@ import (
 const (
 	maxDurationSeconds = 1 * 60
 )
+
+// A map to store user states
+var userStates = make(map[int]string)
+
+// Check if the user is currently expected to make a quality selection
+func isAwaitingQualitySelection(optimus *optimus.Optimus, chatID int) bool {
+	state, exists := userStates[chatID]
+	return exists && state == "awaiting_quality_selection"
+}
+
+// Set the user's state
+func setUserState(optimus *optimus.Optimus, chatID int, state string) {
+	userStates[chatID] = state
+}
+
+// Clear the user's state
+func clearUserState(optimus *optimus.Optimus, chatID int) {
+	delete(userStates, chatID)
+}
 
 func dismissKeyboard(bot *bt.Bot, chatID int, replyText string) {
 	// Create an empty keyboard (effectively removes the previous custom keyboard)
@@ -41,6 +62,7 @@ func start(optimus *optimus.Optimus) {
 			continue
 		}
 
+		fmt.Println("-----------------------the output value: ", update.Message.Text)
 		switch update.Message.Text {
 		case "/start":
 			sendWelcomeMessage(optimus, update.Message.Chat.Id)
@@ -48,16 +70,20 @@ func start(optimus *optimus.Optimus) {
 		// 	handleFormatSelection(optimus, update.Message)
 		case "mp3":
 			optimus.Format = "mp3"
-			handleFormatSelection(optimus, update.Message)
+			createQualityKeyboard(optimus, update.Message)
+			// handleFormatSelection(optimus, update.Message)
 		case "flac":
 			optimus.Format = "flac"
 			optimus.Quality = ""
 		case "32k", "64k", "96k", "128k", "192k", "256k", "320k":
-			optimus.Quality = update.Message.Text
+			// If you're awaiting a quality selection, handle it here
+			if isAwaitingQualitySelection(optimus, update.Message.Chat.Id) {
+				go handleQualitySelection(optimus, update.Message)
+			}
 		case "/about":
 			sendBotDescription(optimus, update.Message.Chat.Id, update.Message.MessageId)
 		default:
-			handleVideoConversion(optimus, update.Message)
+			go handleVideoConversion(optimus, update.Message)
 		}
 	}
 }
@@ -79,17 +105,48 @@ func sendWelcomeMessage(optimus *optimus.Optimus, chatID int) {
 	}
 }
 
-func handleFormatSelection(optimus *optimus.Optimus, message *objs.Message) {
+func handleQualitySelection(optimus *optimus.Optimus, message *objs.Message) {
+	// Process the user's response
+	optimus.Quality = message.Text
+	fmt.Println("----> [][][] the message.Text here is : ", message.Text)
+
+	// Hide the keyboard and send a confirmation message
+	_, err := optimus.Bot.SendMessage(message.Chat.Id, "Quality selected: "+message.Text, "", message.MessageId, false, false)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// Clear the user's state
+	clearUserState(optimus, message.Chat.Id)
+}
+
+func createQualityKeyboard(optimus *optimus.Optimus, message *objs.Message) {
 	qualityKb := optimus.Bot.CreateKeyboard(true, true, false, "Choose quality of audio file.")
 	qualityKb.AddButton("64k", 1)
 	qualityKb.AddButton("96k", 1)
 	qualityKb.AddButton("128k", 2)
 	qualityKb.AddButton("192k", 2)
+	fmt.Println("----> [2][2][2] the message.Text here is : ", message.Text)
 	_, err := optimus.Bot.AdvancedMode().ASendMessage(message.Chat.Id, "Please choose a quality for audio file.", "", message.MessageId, false, false, nil, false, false, qualityKb)
 	if err != nil {
 		fmt.Println(err)
 	}
-	optimus.Format = message.Text
+	setUserState(optimus, message.Chat.Id, "awaiting_quality_selection")
+}
+
+func handleFormatSelection(optimus *optimus.Optimus, message *objs.Message) {
+	// Check if the user has already made a selection
+	optimus.Quality = message.Text
+	fmt.Println("----> [1][1][1] the message.Text here is : ", message.Text)
+
+	// After receiving the value, hide the keyboard
+	_, err := optimus.Bot.SendMessage(message.Chat.Id, "Quality selected: "+message.Text, "", message.MessageId, false, false)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// Clear the user's state or context
+	clearUserState(optimus, message.Chat.Id)
 }
 
 func sendBotDescription(optimus *optimus.Optimus, chatID int, messageID int) {
@@ -100,36 +157,44 @@ func sendBotDescription(optimus *optimus.Optimus, chatID int, messageID int) {
 	}
 }
 
-func handleVideoConversion(optimus *optimus.Optimus, message *objs.Message) {
+func handleVideoConversion(optimus *optimus.Optimus, message *objs.Message) error {
+
 	video := message.Video
 
 	if video.Duration > maxDurationSeconds {
 		durationLimitMsg := fmt.Sprintf("The uploaded video exceeds the %d-seconds limit. Please upload a shorter video.", maxDurationSeconds)
-		_, err := optimus.Bot.SendMessage(message.Chat.Id, durationLimitMsg, "", message.MessageId, false, false)
-		if err != nil {
-			log.Printf("Failed to send the video length warning: %v", err)
-		}
-		return
+		return fmt.Errorf("failed to send the video length warning: %s", durationLimitMsg)
 	}
 
 	videoDirectory := system.EnsureVideoDirectory()
 	originalFilename := filepath.Join(videoDirectory, video.FileId+".mp4")
 
+	log.WithFields(log.Fields{
+		"videoDirectory":   videoDirectory,
+		"originalFilename": originalFilename,
+		"optimus.Format":   optimus.Format,
+	}).Info("Video conversion started")
+
 	outputAudioFilename := filepath.Join(videoDirectory, video.FileId+fmt.Sprintf("_converted_Audio.%s", optimus.Format))
 	originalFile := system.CreateAndOpenFile(originalFilename)
-	fmt.Printf("1- videoDirectory: %s\n 2- originalFilename: %s\n 3- outputAudioFilename: %s\n 4- originalFile: %s\n", videoDirectory, originalFilename, outputAudioFilename, originalFile)
 	defer originalFile.Close()
 
 	_, err := optimus.Bot.GetFile(video.FileId, true, originalFile)
 	if err != nil {
-		log.Println("Error while getting the file:", err)
-		return
+		return fmt.Errorf("error while getting the file: %v", err)
 	}
+	fmt.Printf("🍑 originalFilename: %s\n 🍑outputAudioFilename: %s\n 🍑optimus.Format: %s\n🍑 optimus.Quality: %s\n", originalFilename, outputAudioFilename, optimus.Format, optimus.Quality)
 
-	audioFile, _ := optimus.ExtractAudioFromVideo(originalFilename, outputAudioFilename, optimus.Format, optimus.Quality)
+	audioFile, err := optimus.ExtractAudioFromVideo(originalFilename, outputAudioFilename, optimus.Format, optimus.Quality)
+	if err != nil {
+		log.Printf("Failed to extract audio from video: %v", err)
+		return err
+	}
 	defer audioFile.Close()
 
 	optimus.SendAudioToUser(message.Chat.Id, message.MessageId, audioFile, false)
+
+	return nil
 }
 
 func main() {
