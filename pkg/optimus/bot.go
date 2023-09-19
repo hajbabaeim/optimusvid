@@ -1,6 +1,7 @@
 package optimus
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"os"
@@ -44,11 +45,23 @@ func Init() *Optimus {
 }
 
 func (optimus *Optimus) ExtractAudioFromVideo(inputPath string, outputPath string, audioCodec string, audioBitrate string) (*os.File, error) {
-	fmt.Printf("---->>>> %s, %s", audioCodec, audioBitrate)
-	cmd := exec.Command("ffmpeg", "-i", inputPath, "-c:a", audioCodec, "-b:a", audioBitrate, outputPath)
+	fmt.Printf("🚀 audioCodec: %s\n 🚀audioBitrate: %s\n 🚀inputPath: %s\n🚀 outputPath: %s\n", audioCodec, audioBitrate, inputPath, outputPath)
+	var cmd *exec.Cmd
+	if optimus.Format == "flac" {
+		fmt.Println("Changed output format to FLAC.")
+		cmd = exec.Command("ffmpeg", "-y", "-i", inputPath, "-vn", "-c:a", "flac", outputPath)
+	} else if optimus.Format == "mp3" {
+		fmt.Println("Changed output format to MP3.")
+		cmd = exec.Command("ffmpeg", "-y", "-i", inputPath, "-vn", "-c:a", "libmp3lame", "-b:a", "128k", outputPath)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return nil, err
+		fmt.Println(fmt.Sprintf("Failed to execute command: %v\nOutput:\n%s\nError:\n%s", cmd.Args, stdout.String(), stderr.String()))
 	}
 
 	audioFile, err := os.Open(outputPath)
