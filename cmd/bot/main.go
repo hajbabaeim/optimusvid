@@ -66,14 +66,14 @@ func start(optimus *optimus.Optimus) {
 		switch update.Message.Text {
 		case "/start":
 			sendWelcomeMessage(optimus, update.Message.Chat.Id)
-		// case "aac", "flac", "Vorbis":
-		// 	handleFormatSelection(optimus, update.Message)
 		case "mp3":
 			optimus.Format = "mp3"
 			createQualityKeyboard(optimus, update.Message)
-			// handleFormatSelection(optimus, update.Message)
 		case "flac":
 			optimus.Format = "flac"
+			optimus.Quality = ""
+		case "wav":
+			optimus.Format = "wav"
 			optimus.Quality = ""
 		case "32k", "64k", "96k", "128k", "192k", "256k", "320k":
 			// If you're awaiting a quality selection, handle it here
@@ -92,6 +92,7 @@ func handleSettings(optimus *optimus.Optimus, u *objs.Update) {
 	settingsKb := optimus.Bot.CreateKeyboard(false, false, false, "Choose an options for format of output audio file.")
 	settingsKb.AddButton("mp3", 1)
 	settingsKb.AddButton("flac", 1)
+	settingsKb.AddButton("wav", 1)
 	_, err := optimus.Bot.AdvancedMode().ASendMessage(u.Message.Chat.Id, "Please choose a format", "", u.Message.MessageId, false, false, nil, false, false, settingsKb)
 	if err != nil {
 		fmt.Println(err)
@@ -124,29 +125,14 @@ func createQualityKeyboard(optimus *optimus.Optimus, message *objs.Message) {
 	qualityKb := optimus.Bot.CreateKeyboard(true, true, false, "Choose quality of audio file.")
 	qualityKb.AddButton("64k", 1)
 	qualityKb.AddButton("96k", 1)
-	qualityKb.AddButton("128k", 2)
-	qualityKb.AddButton("192k", 2)
+	qualityKb.AddButton("128k", 1)
+	qualityKb.AddButton("192k", 1)
 	fmt.Println("----> [2][2][2] the message.Text here is : ", message.Text)
 	_, err := optimus.Bot.AdvancedMode().ASendMessage(message.Chat.Id, "Please choose a quality for audio file.", "", message.MessageId, false, false, nil, false, false, qualityKb)
 	if err != nil {
 		fmt.Println(err)
 	}
 	setUserState(optimus, message.Chat.Id, "awaiting_quality_selection")
-}
-
-func handleFormatSelection(optimus *optimus.Optimus, message *objs.Message) {
-	// Check if the user has already made a selection
-	optimus.Quality = message.Text
-	fmt.Println("----> [1][1][1] the message.Text here is : ", message.Text)
-
-	// After receiving the value, hide the keyboard
-	_, err := optimus.Bot.SendMessage(message.Chat.Id, "Quality selected: "+message.Text, "", message.MessageId, false, false)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	// Clear the user's state or context
-	clearUserState(optimus, message.Chat.Id)
 }
 
 func sendBotDescription(optimus *optimus.Optimus, chatID int, messageID int) {

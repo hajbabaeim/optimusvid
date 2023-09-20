@@ -47,12 +47,19 @@ func Init() *Optimus {
 func (optimus *Optimus) ExtractAudioFromVideo(inputPath string, outputPath string, audioCodec string, audioBitrate string) (*os.File, error) {
 	fmt.Printf("🚀 audioCodec: %s\n 🚀audioBitrate: %s\n 🚀inputPath: %s\n🚀 outputPath: %s\n", audioCodec, audioBitrate, inputPath, outputPath)
 	var cmd *exec.Cmd
-	if optimus.Format == "flac" {
+
+	switch optimus.Format {
+	case "flac":
 		fmt.Println("Changed output format to FLAC.")
 		cmd = exec.Command("ffmpeg", "-y", "-i", inputPath, "-vn", "-c:a", "flac", outputPath)
-	} else if optimus.Format == "mp3" {
+	case "mp3":
 		fmt.Println("Changed output format to MP3.")
-		cmd = exec.Command("ffmpeg", "-y", "-i", inputPath, "-vn", "-c:a", "libmp3lame", "-b:a", "128k", outputPath)
+		cmd = exec.Command("ffmpeg", "-y", "-i", inputPath, "-vn", "-c:a", "libmp3lame", "-b:a", audioBitrate, outputPath)
+	case "wav":
+		fmt.Println("Changed output format to WAV.")
+		cmd = exec.Command("ffmpeg", "-y", "-i", inputPath, "-vn", "-c:a", "pcm_s16le", outputPath)
+	default:
+		return nil, fmt.Errorf("Unsupported format: %s", optimus.Format)
 	}
 
 	var stdout bytes.Buffer
