@@ -23,7 +23,7 @@ func LoadEnv() {
 	}
 }
 
-func EnsureVideoDirectory() string {
+func EnsureMediaDirectory(fileType string) string {
 	exe, err := os.Executable()
 	if err != nil {
 		log.Panicf("Failed to determine the executable path: %v", err)
@@ -38,15 +38,15 @@ func EnsureVideoDirectory() string {
 		projectRoot = filepath.Join(exeDir, "..", "..")
 	}
 	// Ensure /tmp/videos directory exists
-	videoPath := filepath.Join(projectRoot, "tmp", "videos")
-	if _, err := os.Stat(videoPath); os.IsNotExist(err) {
-		err := os.MkdirAll(videoPath, 0755)
+	mediaPath := filepath.Join(projectRoot, "tmp", fileType)
+	if _, err := os.Stat(mediaPath); os.IsNotExist(err) {
+		err := os.MkdirAll(mediaPath, 0755)
 		if err != nil {
 			log.Panicf("Failed to create directory: %v", err)
 		}
 	}
 
-	return videoPath
+	return mediaPath
 }
 
 func CreateAndOpenFile(filename string) *os.File {
