@@ -62,6 +62,10 @@ func start(optimus *optimus.Optimus) {
 			continue
 		}
 
+		fmt.Printf("🚀🚀🚀 The Message: %#v\n\n", update.Message)
+		fmt.Printf("🚀🚀🚀 The Audio: %#v\n\n", update.Message.Audio)
+		fmt.Printf("🚀🚀🚀 The Voice: %#v\n\n", update.Message.Vocie)
+
 		switch update.Message.Text {
 		case "/start":
 			sendWelcomeMessage(optimus, update.Message.Chat.Id)
@@ -82,10 +86,12 @@ func start(optimus *optimus.Optimus) {
 		case "/about":
 			sendBotDescription(optimus, update.Message.Chat.Id, update.Message.MessageId)
 		default:
-			if update.Message.Audio == nil && update.Message.Video != nil {
+			if update.Message.Video != nil {
 				go handleVideoToAudioConversion(optimus, update.Message)
-			} else if update.Message.Audio != nil && update.Message.Video == nil {
-				go handleAudioTranscriptConversion(optimus, update.Message)
+			} else if update.Message.Audio != nil {
+				go handleAudioTranscription(optimus, update.Message)
+			} else if update.Message.Vocie != nil {
+				fmt.Println("Here! == === = = = = = ")
 			}
 		}
 	}
@@ -142,10 +148,8 @@ func sendBotDescription(optimus *optimus.Optimus, chatID int, messageID int) {
 	}
 }
 
-func handleAudioTranscriptConversion(optimus *optimus.Optimus, message *objs.Message) error {
+func handleAudioTranscription(optimus *optimus.Optimus, message *objs.Message) error {
 	audio := message.Audio
-
-	fmt.Printf(" --- the audio file: %#v\n", audio)
 
 	if audio.Duration > maxDurationSeconds {
 		durationLimitMsg := fmt.Sprintf("The uploaded audio exceeds the %d-seconds limit. Please upload a shorter audio.", maxDurationSeconds)
